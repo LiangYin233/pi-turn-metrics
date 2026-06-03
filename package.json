@@ -1,0 +1,23 @@
+{
+  "name": "pi-turn-metrics",
+  "version": "0.1.0",
+  "description": "A Pi extension that displays per-turn token usage, cache hit rate, TTFT, and tokens per second.",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "metrics",
+    "tokens",
+    "ttft",
+    "tps"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  }
+}
