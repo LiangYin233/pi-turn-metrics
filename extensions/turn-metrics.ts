@@ -149,6 +149,14 @@ export default function conversationMetrics(pi: ExtensionAPI) {
 		return state.activeTiming;
 	}
 
+	pi.on("session_start", async (_event, ctx) => {
+		if (ctx.hasUI) ctx.ui.setWidget(WIDGET_KEY, undefined);
+	});
+
+	pi.on("session_shutdown", async (_event, ctx) => {
+		if (ctx.hasUI) ctx.ui.setWidget(WIDGET_KEY, undefined);
+	});
+
 	pi.on("agent_start", async () => {
 		round = { startedAtMs: Date.now(), timings: [] };
 	});
@@ -190,7 +198,6 @@ export default function conversationMetrics(pi: ExtensionAPI) {
 		lastSummary = `本轮统计: ${buildSummary(usage, timings)}`;
 
 		if (ctx.hasUI) {
-			ctx.ui.setWidget(WIDGET_KEY, [lastSummary], { placement: "belowEditor" });
 			ctx.ui.notify(lastSummary, "info");
 		}
 
@@ -202,7 +209,6 @@ export default function conversationMetrics(pi: ExtensionAPI) {
 		handler: async (_args, ctx) => {
 			if (!ctx.hasUI) return;
 			ctx.ui.notify(lastSummary, "info");
-			ctx.ui.setWidget(WIDGET_KEY, [lastSummary], { placement: "belowEditor" });
 		},
 	});
 }
