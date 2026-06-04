@@ -117,7 +117,6 @@ function summarizeTimings(timings: AssistantTiming[], outputTokens: number): { a
 }
 
 function buildSummary(usage: UsageTotals, timings: AssistantTiming[]): string {
-	const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
 	const cacheHitRate = usage.requestCount > 0 ? (usage.cacheHitRateSum / usage.requestCount) * 100 : undefined;
 	const timingSummary = summarizeTimings(timings, usage.output);
 
