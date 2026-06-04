@@ -12,12 +12,14 @@ type AssistantTiming = {
 	requestStartMs: number;
 	firstOutputMs?: number;
 	endMs?: number;
+	outputTokens?: number;
 };
 
 type RoundStats = {
 	startedAtMs: number;
 	timings: AssistantTiming[];
 	activeTiming?: AssistantTiming;
+	pendingRequestStartMs?: number;
 };
 
 function nonNegativeNumber(value: unknown): number {
@@ -88,8 +90,9 @@ function isFirstOutputEvent(streamEvent: any): boolean {
 	return streamEvent.type === "toolcall_end" || streamEvent.type === "done" || streamEvent.type === "error";
 }
 
-function summarizeTimings(timings: AssistantTiming[], outputTokens: number): { avgFirstOutputMs?: number; tokensPerSecond?: number } {
-	const firstOutputLatencies = timings
+function summarizeTimings(timings: AssistantTiming[]): { avgFirstOutputMs?: number; tokensPerSecond?: number } {
+	const completedTimings = timings.filter((timing) => timing.endMs !== undefined);
+	const firstOutputLatencies = completedTimings
 		.filter((timing) => timing.firstOutputMs !== undefined)
 		.map((timing) => Math.max(0, (timing.firstOutputMs as number) - timing.requestStartMs));
 
@@ -98,19 +101,19 @@ function summarizeTimings(timings: AssistantTiming[], outputTokens: number): { a
 			? firstOutputLatencies.reduce((sum, value) => sum + value, 0) / firstOutputLatencies.length
 			: undefined;
 
-	const requestMs = timings.reduce((sum, timing) => {
-		if (timing.endMs === undefined) return sum;
-		return sum + Math.max(0, timing.endMs - timing.requestStartMs);
+	const requestMs = completedTimings.reduce((sum, timing) => {
+		return sum + Math.max(0, (timing.endMs as number) - timing.requestStartMs);
 	}, 0);
+	const measuredOutputTokens = completedTimings.reduce((sum, timing) => sum + nonNegativeNumber(timing.outputTokens), 0);
 
-	const tokensPerSecond = requestMs > 0 && outputTokens > 0 ? outputTokens / (requestMs / 1_000) : undefined;
+	const tokensPerSecond = requestMs > 0 && measuredOutputTokens > 0 ? measuredOutputTokens / (requestMs / 1_000) : undefined;
 	return { avgFirstOutputMs, tokensPerSecond };
 }
 
 function buildSummary(usage: UsageTotals, timings: AssistantTiming[]): string {
 	const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
 	const cacheHitRate = promptTokens > 0 ? (usage.cacheRead / promptTokens) * 100 : undefined;
-	const timingSummary = summarizeTimings(timings, usage.output);
+	const timingSummary = summarizeTimings(timings);
 
 	return [
 		`INPUT ${formatTokens(usage.input)}`,
@@ -128,25 +131,22 @@ export default function conversationMetrics(pi: ExtensionAPI) {
 	let round: RoundStats | undefined;
 	let lastSummary = "暂无本轮统计";
 
-	function ensureRound(): RoundStats {
-		if (!round) {
-			round = { startedAtMs: Date.now(), timings: [] };
-		}
-		return round;
+	function beginTiming(): void {
+		const state = round;
+		if (!state) return;
+		// Some providers/transports can emit more than one payload hook for the
+		// same assistant response. Keep the earliest request start until the
+		// assistant message binds to it; never overwrite an in-flight response.
+		if (state.activeTiming && state.activeTiming.endMs === undefined) return;
+		state.pendingRequestStartMs ??= Date.now();
 	}
 
-	function beginTiming(): AssistantTiming {
-		const state = ensureRound();
-		const timing: AssistantTiming = { requestStartMs: Date.now() };
-		state.timings.push(timing);
-		state.activeTiming = timing;
-		return timing;
-	}
-
-	function getActiveTiming(): AssistantTiming {
-		const state = ensureRound();
+	function getActiveTiming(): AssistantTiming | undefined {
+		const state = round;
+		if (!state) return undefined;
 		if (!state.activeTiming) {
-			const timing: AssistantTiming = { requestStartMs: Date.now() };
+			const timing: AssistantTiming = { requestStartMs: state.pendingRequestStartMs ?? Date.now() };
+			state.pendingRequestStartMs = undefined;
 			state.timings.push(timing);
 			state.activeTiming = timing;
 		}
@@ -169,6 +169,7 @@ export default function conversationMetrics(pi: ExtensionAPI) {
 	pi.on("message_update", (event) => {
 		if (!isAssistantMessage(event.message)) return;
 		const timing = getActiveTiming();
+		if (!timing) return;
 		if (timing.firstOutputMs === undefined && isFirstOutputEvent(event.assistantMessageEvent)) {
 			timing.firstOutputMs = Date.now();
 		}
@@ -177,10 +178,12 @@ export default function conversationMetrics(pi: ExtensionAPI) {
 	pi.on("message_end", (event) => {
 		if (!isAssistantMessage(event.message)) return;
 		const timing = getActiveTiming();
+		const state = round;
+		if (!timing || !state) return;
 		const now = Date.now();
 		if (timing.firstOutputMs === undefined) timing.firstOutputMs = now;
 		timing.endMs = now;
-		const state = ensureRound();
+		timing.outputTokens = nonNegativeNumber((event.message as any).usage?.output);
 		if (state.activeTiming === timing) state.activeTiming = undefined;
 	});
 
