@@ -16,7 +16,6 @@ type AssistantTiming = {
 };
 
 type RoundStats = {
-	startedAtMs: number;
 	timings: AssistantTiming[];
 	activeTiming?: AssistantTiming;
 	pendingRequestStartMs?: number;
@@ -37,9 +36,9 @@ function addUsage(total: UsageTotals, usage: any): void {
 	const output = nonNegativeNumber(usage.output);
 	const cacheRead = nonNegativeNumber(usage.cacheRead);
 	const cacheWrite = nonNegativeNumber(usage.cacheWrite);
-	const totalTokens = usage.totalTokens === undefined
-		? input + output + cacheRead + cacheWrite
-		: nonNegativeNumber(usage.totalTokens);
+	const computedTotalTokens = input + output + cacheRead + cacheWrite;
+	const reportedTotalTokens = nonNegativeNumber(usage.totalTokens);
+	const totalTokens = Math.max(reportedTotalTokens, computedTotalTokens);
 
 	total.input += input;
 	total.output += output;
@@ -87,7 +86,20 @@ function isFirstOutputEvent(streamEvent: any): boolean {
 	if (streamEvent.type === "text_delta" || streamEvent.type === "thinking_delta" || streamEvent.type === "toolcall_delta") {
 		return typeof streamEvent.delta !== "string" || streamEvent.delta.length > 0;
 	}
-	return streamEvent.type === "toolcall_end" || streamEvent.type === "done" || streamEvent.type === "error";
+	if (streamEvent.type === "text_end" || streamEvent.type === "thinking_end") {
+		return typeof streamEvent.content === "string" && streamEvent.content.length > 0;
+	}
+	return streamEvent.type === "toolcall_end";
+}
+
+function hasObservableAssistantOutput(message: any): boolean {
+	if (!Array.isArray(message?.content)) return false;
+	return message.content.some((block: any) => {
+		if (block?.type === "toolCall") return true;
+		if (block?.type === "text") return typeof block.text === "string" && block.text.length > 0;
+		if (block?.type === "thinking") return typeof block.thinking === "string" && block.thinking.length > 0;
+		return false;
+	});
 }
 
 function summarizeTimings(timings: AssistantTiming[]): { avgFirstOutputMs?: number; tokensPerSecond?: number } {
@@ -154,7 +166,7 @@ export default function conversationMetrics(pi: ExtensionAPI) {
 	}
 
 	pi.on("agent_start", async () => {
-		round = { startedAtMs: Date.now(), timings: [] };
+		round = { timings: [] };
 	});
 
 	pi.on("before_provider_request", () => {
@@ -181,7 +193,7 @@ export default function conversationMetrics(pi: ExtensionAPI) {
 		const state = round;
 		if (!timing || !state) return;
 		const now = Date.now();
-		if (timing.firstOutputMs === undefined) timing.firstOutputMs = now;
+		if (timing.firstOutputMs === undefined && hasObservableAssistantOutput(event.message)) timing.firstOutputMs = now;
 		timing.endMs = now;
 		timing.outputTokens = nonNegativeNumber((event.message as any).usage?.output);
 		if (state.activeTiming === timing) state.activeTiming = undefined;

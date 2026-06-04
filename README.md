@@ -47,12 +47,12 @@ You can also show the latest summary again with:
 
 ## Metric definitions
 
-- `INPUT`: Sum of `usage.input` from all assistant messages in the round.
-- `OUTPUT`: Sum of `usage.output` from all assistant messages in the round.
-- `TOKEN`: Sum of `usage.totalTokens` from all assistant messages in the round.
+- `INPUT`: Sum of Pi-normalized `usage.input` from all assistant messages in the round. Cached input is reported separately as `R`/`W`.
+- `OUTPUT`: Sum of Pi-normalized provider-reported `usage.output` from all assistant messages in the round.
+- `TOKEN`: Sum of provider-reported `usage.totalTokens`; falls back to `input + output + cacheRead + cacheWrite` when a provider reports `0`/missing total tokens.
 - `CACHE`: Whole-round prompt cache hit rate: `sum(cacheRead) / (sum(input) + sum(cacheRead) + sum(cacheWrite))`.
 - `TTFT(avg)`: Average time from provider request payload emission to the first observed output event.
-- `TPS`: `OUTPUT / provider request time`, where provider request time is measured from provider request payload emission to assistant message end. This uses provider-reported `usage.output`, so hidden reasoning tokens and tool-call structure tokens are included when the provider includes them.
+- `TPS`: Sum of timed assistant-message `usage.output` divided by provider request time. Provider request time is measured from provider request payload emission to assistant message end, so it includes TTFT but excludes tool execution time. This uses provider-reported `usage.output`, so hidden reasoning tokens and tool-call structure tokens are included when the provider includes them.
 - `R`: Cache read tokens.
 - `W`: Cache write tokens.
 
