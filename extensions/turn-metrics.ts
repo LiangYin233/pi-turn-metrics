@@ -141,7 +141,6 @@ function buildSummary(usage: UsageTotals, timings: AssistantTiming[]): string {
 
 export default function conversationMetrics(pi: ExtensionAPI) {
 	let round: RoundStats | undefined;
-	let lastSummary = "暂无本轮统计";
 
 	function beginTiming(): void {
 		const state = round;
@@ -206,20 +205,12 @@ export default function conversationMetrics(pi: ExtensionAPI) {
 		}
 
 		const timings = round?.timings ?? [];
-		lastSummary = `本轮统计: ${buildSummary(usage, timings)}`;
+		const summary = buildSummary(usage, timings);
 
 		if (ctx.hasUI) {
-			ctx.ui.notify(lastSummary, "info");
+			ctx.ui.notify(summary, "info");
 		}
 
 		round = undefined;
-	});
-
-	pi.registerCommand("metrics", {
-		description: "Show the latest per-round INPUT/OUTPUT/TOKEN/cache/TTFT/TPS metrics",
-		handler: async (_args, ctx) => {
-			if (!ctx.hasUI) return;
-			ctx.ui.notify(lastSummary, "info");
-		},
 	});
 }

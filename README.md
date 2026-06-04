@@ -16,7 +16,7 @@ It shows:
 Example output:
 
 ```text
-本轮统计: INPUT 12.3k | OUTPUT 1.2k | TOKEN 18.4k | CACHE 63.5% | TTFT(avg) 820ms | TPS 42.7 tok/s | R 5.8k | W 0
+INPUT 12.3k | OUTPUT 1.2k | TOKEN 18.4k | CACHE 63.5% | TTFT(avg) 820ms | TPS 42.7 tok/s | R 5.8k | W 0
 ```
 
 The summary is displayed after each agent round via Pi's notification UI. It intentionally does not occupy the footer/status line while waiting or collecting metrics.
@@ -38,12 +38,6 @@ Then restart Pi or run:
 ## Usage
 
 Start Pi normally. After each conversation round finishes, the metrics summary appears automatically.
-
-You can also show the latest summary again with:
-
-```text
-/metrics
-```
 
 ## Metric definitions
 
