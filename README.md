@@ -50,7 +50,7 @@ You can also show the latest summary again with:
 - `INPUT`: Sum of `usage.input` from all assistant messages in the round.
 - `OUTPUT`: Sum of `usage.output` from all assistant messages in the round.
 - `TOKEN`: Sum of `usage.totalTokens` from all assistant messages in the round.
-- `CACHE`: `cacheRead / (input + cacheRead + cacheWrite)`.
+- `CACHE`: Whole-round prompt cache hit rate: `sum(cacheRead) / (sum(input) + sum(cacheRead) + sum(cacheWrite))`.
 - `TTFT(avg)`: Average time from provider request payload emission to the first observed output event.
 - `TPS`: `OUTPUT / provider request time`, where provider request time is measured from provider request payload emission to assistant message end. This uses provider-reported `usage.output`, so hidden reasoning tokens and tool-call structure tokens are included when the provider includes them.
 - `R`: Cache read tokens.

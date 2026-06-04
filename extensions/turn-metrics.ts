@@ -6,10 +6,6 @@ type UsageTotals = {
 	cacheRead: number;
 	cacheWrite: number;
 	totalTokens: number;
-	/** Number of assistant requests in this round */
-	requestCount: number;
-	/** Σ(cacheRead_i / promptSize_i) across requests for average cache hit rate */
-	cacheHitRateSum: number;
 };
 
 type AssistantTiming = {
@@ -24,15 +20,13 @@ type RoundStats = {
 	activeTiming?: AssistantTiming;
 };
 
-const WIDGET_KEY = "conversation-metrics";
-
 function nonNegativeNumber(value: unknown): number {
 	const number = Number(value ?? 0);
 	return Number.isFinite(number) ? Math.max(0, number) : 0;
 }
 
 function emptyUsage(): UsageTotals {
-	return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, requestCount: 0, cacheHitRateSum: 0 };
+	return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
 }
 
 function addUsage(total: UsageTotals, usage: any): void {
@@ -45,14 +39,11 @@ function addUsage(total: UsageTotals, usage: any): void {
 		? input + output + cacheRead + cacheWrite
 		: nonNegativeNumber(usage.totalTokens);
 
-	const promptSize = input + cacheRead + cacheWrite;
 	total.input += input;
 	total.output += output;
 	total.cacheRead += cacheRead;
 	total.cacheWrite += cacheWrite;
 	total.totalTokens += totalTokens;
-	total.requestCount += 1;
-	if (promptSize > 0) total.cacheHitRateSum += cacheRead / promptSize;
 }
 
 function formatTokens(value: number): string {
@@ -117,7 +108,8 @@ function summarizeTimings(timings: AssistantTiming[], outputTokens: number): { a
 }
 
 function buildSummary(usage: UsageTotals, timings: AssistantTiming[]): string {
-	const cacheHitRate = usage.requestCount > 0 ? (usage.cacheHitRateSum / usage.requestCount) * 100 : undefined;
+	const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
+	const cacheHitRate = promptTokens > 0 ? (usage.cacheRead / promptTokens) * 100 : undefined;
 	const timingSummary = summarizeTimings(timings, usage.output);
 
 	return [
@@ -160,14 +152,6 @@ export default function conversationMetrics(pi: ExtensionAPI) {
 		}
 		return state.activeTiming;
 	}
-
-	pi.on("session_start", async (_event, ctx) => {
-		if (ctx.hasUI) ctx.ui.setWidget(WIDGET_KEY, undefined);
-	});
-
-	pi.on("session_shutdown", async (_event, ctx) => {
-		if (ctx.hasUI) ctx.ui.setWidget(WIDGET_KEY, undefined);
-	});
 
 	pi.on("agent_start", async () => {
 		round = { startedAtMs: Date.now(), timings: [] };
