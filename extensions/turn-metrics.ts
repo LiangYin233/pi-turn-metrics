@@ -22,23 +22,30 @@ type RoundStats = {
 
 const WIDGET_KEY = "conversation-metrics";
 
+function nonNegativeNumber(value: unknown): number {
+	const number = Number(value ?? 0);
+	return Number.isFinite(number) ? Math.max(0, number) : 0;
+}
+
 function emptyUsage(): UsageTotals {
 	return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
 }
 
 function addUsage(total: UsageTotals, usage: any): void {
 	if (!usage) return;
-	const input = Number(usage.input ?? 0);
-	const output = Number(usage.output ?? 0);
-	const cacheRead = Number(usage.cacheRead ?? 0);
-	const cacheWrite = Number(usage.cacheWrite ?? 0);
-	const totalTokens = Number(usage.totalTokens ?? input + output + cacheRead + cacheWrite);
+	const input = nonNegativeNumber(usage.input);
+	const output = nonNegativeNumber(usage.output);
+	const cacheRead = nonNegativeNumber(usage.cacheRead);
+	const cacheWrite = nonNegativeNumber(usage.cacheWrite);
+	const totalTokens = usage.totalTokens === undefined
+		? input + output + cacheRead + cacheWrite
+		: nonNegativeNumber(usage.totalTokens);
 
-	total.input += Number.isFinite(input) ? input : 0;
-	total.output += Number.isFinite(output) ? output : 0;
-	total.cacheRead += Number.isFinite(cacheRead) ? cacheRead : 0;
-	total.cacheWrite += Number.isFinite(cacheWrite) ? cacheWrite : 0;
-	total.totalTokens += Number.isFinite(totalTokens) ? totalTokens : 0;
+	total.input += input;
+	total.output += output;
+	total.cacheRead += cacheRead;
+	total.cacheWrite += cacheWrite;
+	total.totalTokens += totalTokens;
 }
 
 function formatTokens(value: number): string {
@@ -93,13 +100,12 @@ function summarizeTimings(timings: AssistantTiming[], outputTokens: number): { a
 			? firstOutputLatencies.reduce((sum, value) => sum + value, 0) / firstOutputLatencies.length
 			: undefined;
 
-	const streamingMs = timings.reduce((sum, timing) => {
+	const requestMs = timings.reduce((sum, timing) => {
 		if (timing.endMs === undefined) return sum;
-		const start = timing.firstOutputMs ?? timing.requestStartMs;
-		return sum + Math.max(0, timing.endMs - start);
+		return sum + Math.max(0, timing.endMs - timing.requestStartMs);
 	}, 0);
 
-	const tokensPerSecond = streamingMs > 0 && outputTokens > 0 ? outputTokens / (streamingMs / 1_000) : undefined;
+	const tokensPerSecond = requestMs > 0 && outputTokens > 0 ? outputTokens / (requestMs / 1_000) : undefined;
 	return { avgFirstOutputMs, tokensPerSecond };
 }
 

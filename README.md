@@ -9,7 +9,7 @@ It shows:
 - `TOKEN` total tokens
 - `CACHE` prompt cache hit rate
 - `TTFT(avg)` average time to first token / first output event
-- `TPS` output tokens per second
+- `TPS` provider-reported output tokens per second
 - `R` cache read tokens
 - `W` cache write tokens
 
@@ -19,7 +19,7 @@ Example output:
 本轮统计: INPUT 12.3k | OUTPUT 1.2k | TOKEN 18.4k | CACHE 63.5% | TTFT(avg) 820ms | TPS 42.7 tok/s | R 5.8k | W 0
 ```
 
-The summary is displayed after each agent round via Pi's notification UI and a widget below the editor. It intentionally does not occupy the footer/status line while waiting or collecting metrics.
+The summary is displayed after each agent round via Pi's notification UI. It intentionally does not occupy the footer/status line while waiting or collecting metrics.
 
 ## Install
 
@@ -52,11 +52,11 @@ You can also show the latest summary again with:
 - `TOKEN`: Sum of `usage.totalTokens` from all assistant messages in the round.
 - `CACHE`: `cacheRead / (input + cacheRead + cacheWrite)`.
 - `TTFT(avg)`: Average time from provider request payload emission to the first observed output event.
-- `TPS`: `OUTPUT / streaming generation time`, where generation time is measured from first output event to assistant message end and excludes tool execution time.
+- `TPS`: `OUTPUT / provider request time`, where provider request time is measured from provider request payload emission to assistant message end. This uses provider-reported `usage.output`, so hidden reasoning tokens and tool-call structure tokens are included when the provider includes them.
 - `R`: Cache read tokens.
 - `W`: Cache write tokens.
 
-Provider behavior may vary. If a provider counts hidden reasoning tokens in `usage.output` but does not stream them, `TPS` follows the provider-reported token usage.
+Provider behavior may vary. `OUTPUT`, `TOKEN`, and `TPS` follow provider-reported usage. Pi's normalized `usage` currently does not expose a separate reasoning-token field for OpenAI Responses (`output_tokens_details.reasoning_tokens`), so this extension cannot split reasoning tokens out unless Pi's provider usage normalization preserves that detail.
 
 ## Local development
 
